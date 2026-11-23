@@ -26,7 +26,7 @@
 | מודל | הורדה | מתאים ל | רישיון |
 |---|---|---|---|
 | **ISNet** (ברירת מחדל) | 88MB | רוב התמונות, מהיר | AGPL-3.0 (דרך ‎@imgly/background-removal) |
-| **RMBG 1.4** של BRIA | 88MB | קצוות נקיים יותר ברוב התמונות | שימוש לא מסחרי בלבד ([bria-rmbg-1.4](https://huggingface.co/briaai/RMBG-1.4)) |
+| **RMBG** (גרסה 1.4) של BRIA | 88MB | קצוות נקיים יותר ברוב התמונות | שימוש לא מסחרי בלבד ([bria-rmbg-1.4](https://huggingface.co/briaai/RMBG-1.4)) |
 | **MODNet** | 26MB | פורטרטים של אנשים, שיער | Apache-2.0 |
 | **BiRefNet Lite** (ניסיוני) | 115MB | קצוות מדויקים מאוד | MIT |
 

@@ -39,14 +39,14 @@ export function ImageSection({ onPick, model, onModel, appleGpu, hasPhotos }: Pr
             const reason = unavailableReason(m, appleGpu);
             return (
               <option key={m.id} value={m.id} disabled={!!reason}>
-                {m.label} ({m.size}){reason ? `, ${reason}` : ''}
+                {`${m.label}, הורדה של ${m.size}${reason ? ` (${reason})` : ''}`}
               </option>
             );
           })}
         </select>
       </label>
       <p className="hint">
-        {current.description} ההורדה ({current.size}) קורית רק בפעם הראשונה שמשתמשים במודל.
+        {current.description} את ההורדה של {current.size} צריך רק בפעם הראשונה שמשתמשים במודל.
         {!hasWebGPU && ' המודלים חוץ מ-ISNet צריכים דפדפן עם WebGPU, כמו כרום עדכני.'}
         {hasPhotos && ' החלפת מודל מעבדת מחדש את כל התמונות.'}
       </p>

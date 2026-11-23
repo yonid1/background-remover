@@ -56,10 +56,11 @@ export const MODELS: ModelInfo[] = [
   },
   {
     id: 'rmbg',
-    label: 'RMBG 1.4: איכותי יותר',
+    // No version number in the label: next to the download size it read like part of the size.
+    label: 'RMBG: איכותי יותר',
     size: '88MB',
     description:
-      'קצוות נקיים יותר ברוב התמונות: אנשים, מוצרים וחיות. של חברת BRIA, ומותר לשימוש לא מסחרי בלבד.',
+      'RMBG 1.4 של חברת BRIA: קצוות נקיים יותר ברוב התמונות (אנשים, מוצרים וחיות). מותר לשימוש לא מסחרי בלבד.',
     engine: 'transformers',
     transformers: {
       repo: 'briaai/RMBG-1.4',
