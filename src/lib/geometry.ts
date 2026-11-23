@@ -1,4 +1,4 @@
-import type { Rect, Size } from '../types';
+import type { Framing, Item, Rect, Size } from '../types';
 
 /** Crop-frame math. All rectangles are in image pixels and stay inside the image. */
 
@@ -78,6 +78,35 @@ export function resizeRect(size: Size, start: Rect, handle: Handle, dx: number, 
   w = clamp(w, Math.min(Math.max(min, min * ratio), maxW), maxW);
   h = w / ratio;
   return { x: handle.includes('w') ? ax - w : ax, y: handle.includes('n') ? ay - h : ay, w, h };
+}
+
+/**
+ * "Center with padding": a frame centered on the subject with `padding` percent of its
+ * longest side around it, widened to the given shape (0 = the subject's own shape).
+ * Unlike a crop it may reach past the photo's edges; the background fills that area.
+ */
+export function centeredFrame(subject: Rect, padding: number, ratio: number): Rect {
+  const pad = (Math.max(subject.w, subject.h) * padding) / 100;
+  let w = subject.w + 2 * pad;
+  let h = subject.h + 2 * pad;
+  if (ratio) {
+    if (w / h > ratio) h = w / ratio;
+    else w = h * ratio;
+  }
+  const cx = subject.x + subject.w / 2;
+  const cy = subject.y + subject.h / 2;
+  return { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w: Math.round(w), h: Math.round(h) };
+}
+
+/**
+ * The part of a photo that's shown and saved: the whole photo while its crop frame is being
+ * edited, a frame around the subject when centering is on, otherwise its crop (if any).
+ */
+export function viewRegion(item: Item, framing: Framing, editingCrop: boolean): Rect {
+  const full = { x: 0, y: 0, w: item.original.width, h: item.original.height };
+  if (editingCrop) return full;
+  if (framing.on && item.subjectBox) return centeredFrame(item.subjectBox, framing.padding, framing.ratio);
+  return item.crop ?? full;
 }
 
 /** Rounds a frame to whole pixels. Returns null when it covers the whole image (no crop). */

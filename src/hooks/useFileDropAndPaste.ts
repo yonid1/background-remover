@@ -1,12 +1,12 @@
 import { useEffect, useEffectEvent, useState } from 'react';
 
 /**
- * Accepts an image dropped anywhere on the page or pasted from the clipboard.
- * Returns true while a file is being dragged over the page.
+ * Accepts images dropped anywhere on the page or pasted from the clipboard.
+ * Returns true while files are being dragged over the page.
  */
-export function useFileDropAndPaste(onFile: (file: File) => void): boolean {
+export function useFileDropAndPaste(onFiles: (files: File[]) => void): boolean {
   const [dragging, setDragging] = useState(false);
-  const handleFile = useEffectEvent(onFile);
+  const handleFiles = useEffectEvent(onFiles);
 
   useEffect(() => {
     let depth = 0; // dragenter/dragleave fire for every child element
@@ -24,15 +24,17 @@ export function useFileDropAndPaste(onFile: (file: File) => void): boolean {
       e.preventDefault();
       depth = 0;
       setDragging(false);
-      const file = e.dataTransfer?.files[0];
-      if (file) handleFile(file);
+      const files = [...(e.dataTransfer?.files ?? [])];
+      if (files.length) handleFiles(files);
     };
     const onPaste = (e: ClipboardEvent) => {
-      const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
-      const file = item?.getAsFile();
-      if (file) {
+      const files = [...(e.clipboardData?.items ?? [])]
+        .filter((i) => i.type.startsWith('image/'))
+        .map((i) => i.getAsFile())
+        .filter((f): f is File => f !== null);
+      if (files.length) {
         e.preventDefault();
-        handleFile(file);
+        handleFiles(files);
       }
     };
 

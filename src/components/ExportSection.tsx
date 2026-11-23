@@ -19,6 +19,12 @@ interface Props {
   onDownload: () => void;
   onCopy: () => void;
   onShare: () => void;
+  /** How many photos are open, and how many are ready to save. */
+  total: number;
+  readyCount: number;
+  /** "3/10" while the ZIP is being made, otherwise null. */
+  zipProgress: string | null;
+  onDownloadAll: () => void;
 }
 
 export function ExportSection(p: Props) {
@@ -93,6 +99,27 @@ export function ExportSection(p: Props) {
         <button className="btn block mt-8" type="button" disabled={!p.ready} onClick={p.onShare}>
           שיתוף או שמירה לתמונות
         </button>
+      )}
+      {p.total > 1 && (
+        <>
+          <button
+            className="btn block mt-8"
+            type="button"
+            disabled={p.readyCount === 0 || p.zipProgress !== null}
+            onClick={p.onDownloadAll}
+          >
+            {p.zipProgress !== null
+              ? `מכינים קובץ ZIP… ${p.zipProgress}`
+              : p.readyCount === p.total
+                ? `הורדת כל ${p.total} התמונות (ZIP)`
+                : `הורדת ${p.readyCount} התמונות המוכנות (ZIP)`}
+          </button>
+          {p.readyCount < p.total && (
+            <p className="hint">
+              {p.readyCount} מתוך {p.total} תמונות מוכנות. השאר עוד בעיבוד.
+            </p>
+          )}
+        </>
       )}
     </section>
   );

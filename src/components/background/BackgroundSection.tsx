@@ -31,8 +31,8 @@ export function BackgroundSection({ bg, onChange, onError }: Props) {
 
   const openBackground = async (file: File) => {
     try {
+      // The previous image's URL is kept alive: undo can bring that background back.
       const image = await loadBackgroundImage(file);
-      if (bg.image) URL.revokeObjectURL(bg.image.url);
       onChange({ type: 'image', image });
     } catch {
       onError(decodeErrorMessage(file));

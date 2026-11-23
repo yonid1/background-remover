@@ -1,16 +1,23 @@
-import { GRADIENT_DIRS } from '../constants';
+import { GRADIENT_DIRS, MAX_PIXELS } from '../constants';
 import type { BgSettings, Effects, ExportFormat, Rect } from '../types';
 
 export interface ComposeParams {
   original: HTMLCanvasElement;
   /** The subject on a transparent background; null while it's still being made. */
   cutout: HTMLCanvasElement | null;
+  /** Changes whenever the cutout is edited in place (see Item.version). */
+  version: number;
   bg: BgSettings;
   effects: Effects;
-  /** The part of the image to draw (the crop, or the whole image), in image pixels. */
+  /**
+   * The part of the image to draw, in image pixels: the crop, the whole image, or a frame
+   * around the subject that may reach past the photo's edges (filled with the background).
+   */
   region: Rect;
   /** Draw the untouched original instead of the result. */
   showOriginal: boolean;
+  /** Show the original faintly behind the subject (while using the touch-up brush). */
+  ghost?: boolean;
 }
 
 /** The on-screen preview is drawn at most this big; saved files use the full size. */
@@ -45,16 +52,22 @@ export function composeInto(canvas: HTMLCanvasElement, p: ComposeParams, scale =
     ctx.drawImage(p.original, -p.region.x, -p.region.y);
   } else {
     drawBackground(ctx, p, scale);
-    drawSubject(ctx, p.cutout, p.effects, p.region, scale);
+    if (p.ghost) {
+      ctx.globalAlpha = 0.3;
+      ctx.drawImage(p.original, -p.region.x, -p.region.y);
+      ctx.globalAlpha = 1;
+    }
+    drawSubject(ctx, p.cutout, p.version, p.effects, p.region, scale);
   }
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 }
 
 /** Draws the final picture and encodes it, optionally scaled down so its longest side is `maxSide`. */
 export async function renderToBlob(p: ComposeParams, format: ExportFormat, maxSide: number): Promise<Blob> {
-  // Draw at full size, then shrink in one high-quality step (sharper than drawing small).
+  // Draw at full size (but never past the browser's canvas limit, which a padded frame
+  // around a large photo could reach), then shrink in one high-quality step.
   const full = document.createElement('canvas');
-  composeInto(full, p);
+  composeInto(full, p, Math.min(1, Math.sqrt(MAX_PIXELS / (p.region.w * p.region.h))));
   let out = full;
   const longest = Math.max(full.width, full.height);
   if (maxSide && longest > maxSide) {
@@ -115,10 +128,32 @@ function drawBackground(ctx: CanvasRenderingContext2D, { bg, region, original }:
   }
 }
 
+// The average color of each photo, used to fill frame areas outside it under a blurred background.
+const averageColors = new WeakMap<HTMLCanvasElement, string>();
+function averageColor(src: HTMLCanvasElement): string {
+  let color = averageColors.get(src);
+  if (!color) {
+    const one = document.createElement('canvas');
+    one.width = 1;
+    one.height = 1;
+    const c = one.getContext('2d', { willReadFrequently: true })!;
+    c.imageSmoothingQuality = 'high';
+    c.drawImage(src, 0, 0, 1, 1);
+    const [r, g, b] = c.getImageData(0, 0, 1, 1).data;
+    color = `rgb(${r}, ${g}, ${b})`;
+    averageColors.set(src, color);
+  }
+  return color;
+}
+
 function drawBlurred(ctx: CanvasRenderingContext2D, src: HTMLCanvasElement, region: Rect, strength: number, scale: number) {
   const W = src.width;
   const H = src.height;
   const r = Math.max(1, Math.round((Math.max(W, H) * strength) / 1500)); // in image pixels
+  if (region.x < 0 || region.y < 0 || region.x + region.w > W || region.y + region.h > H) {
+    ctx.fillStyle = averageColor(src);
+    ctx.fillRect(0, 0, region.w, region.h);
+  }
   if (supportsCanvasFilter) {
     // Draw slightly larger than the image so the blurred edges don't fade out.
     const m = r * 2;
@@ -149,10 +184,17 @@ function drawCover(ctx: CanvasRenderingContext2D, img: HTMLImageElement, w: numb
 // ---------- Subject and its effects ----------
 
 /** The subject, with its outline and shadow if those are on. */
-function drawSubject(ctx: CanvasRenderingContext2D, cutout: HTMLCanvasElement, effects: Effects, region: Rect, scale: number) {
+function drawSubject(
+  ctx: CanvasRenderingContext2D,
+  cutout: HTMLCanvasElement,
+  version: number,
+  effects: Effects,
+  region: Rect,
+  scale: number,
+) {
   const W = cutout.width;
   const H = cutout.height;
-  const outline = effects.outline ? outlineLayer(cutout, effects.outlineColor, effects.outlineWidth) : null;
+  const outline = effects.outline ? outlineLayer(cutout, version, effects.outlineColor, effects.outlineWidth) : null;
 
   ctx.save();
   if (effects.shadow) {
@@ -181,8 +223,8 @@ const outlineCache = new WeakMap<HTMLCanvasElement, { key: string; canvas: HTMLC
  * The subject's shape grown by `width` (1–40, up to 4% of the image) and filled with
  * `color`, like a sticker border. The subject itself is drawn on top of it separately.
  */
-function outlineLayer(cutout: HTMLCanvasElement, color: string, width: number): HTMLCanvasElement {
-  const key = `${color}|${width}`;
+function outlineLayer(cutout: HTMLCanvasElement, version: number, color: string, width: number): HTMLCanvasElement {
+  const key = `${version}|${color}|${width}`;
   const cached = outlineCache.get(cutout);
   if (cached?.key === key) return cached.canvas;
 
