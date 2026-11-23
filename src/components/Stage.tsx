@@ -1,45 +1,59 @@
 import { useLayoutEffect, useRef } from 'react';
 import { composeInto, PREVIEW_MAX_SIDE } from '../lib/compose';
-import type { BgSettings, Effects, LoadedImage, Rect, RemovalState } from '../types';
+import type { BgSettings, Effects, Item, Rect } from '../types';
+import { BrushOverlay } from './BrushOverlay';
 import { CropOverlay } from './CropOverlay';
 import { PhotoIcon } from './icons';
 import { StatusOverlay } from './StatusOverlay';
 
+interface Point {
+  x: number;
+  y: number;
+}
+
 interface Props {
-  image: LoadedImage | null;
-  cutout: HTMLCanvasElement | null;
+  item: Item | null;
   bg: BgSettings;
   effects: Effects;
-  /** The part of the image to show. */
+  /** The part of the image to show (crop, whole image, or a frame around the subject). */
   region: Rect | null;
   showOriginal: boolean;
   cropEdit: Rect | null;
   cropRatio: number;
   onCropChange: (rect: Rect) => void;
-  removal: RemovalState;
+  /** Brush radius in image pixels while the touch-up brush is on, otherwise null. */
+  brushRadius: number | null;
+  onStrokeStart: (p: Point) => void;
+  onStrokeMove: (p: Point) => void;
+  onStrokeEnd: () => void;
   onRetry: () => void;
   onPick: () => void;
   dragging: boolean;
   toast: string | null;
 }
 
-/** The preview area: empty drop zone, the result canvas, the crop frame and status messages. */
+/** The preview area: empty drop zone, the result canvas, crop frame, brush, and status messages. */
 export function Stage(p: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { image, cutout, bg, effects, region, showOriginal } = p;
+  const { item, bg, effects, region, showOriginal } = p;
+  const ghost = p.brushRadius !== null;
 
   useLayoutEffect(() => {
-    if (image && region && canvasRef.current) {
+    if (item && region && canvasRef.current) {
       // The preview doesn't need more pixels than a screen can show; saving uses full size.
       const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(region.w, region.h));
-      composeInto(canvasRef.current, { original: image.canvas, cutout, bg, effects, region, showOriginal }, scale);
+      composeInto(
+        canvasRef.current,
+        { original: item.original, cutout: item.cutout, version: item.version, bg, effects, region, showOriginal, ghost },
+        scale,
+      );
     }
-  }, [image, cutout, bg, effects, region, showOriginal]);
+  }, [item, bg, effects, region, showOriginal, ghost]);
 
   return (
     <div ref={stageRef} className={p.dragging ? 'stage dragging' : 'stage'}>
-      {!image && (
+      {!item && (
         <div
           className="empty"
           role="button"
@@ -53,25 +67,37 @@ export function Stage(p: Props) {
           }}
         >
           <PhotoIcon />
-          <strong>גררו תמונה לכאן או לחצו כדי לבחור</strong>
-          <span>JPG, PNG, WEBP ועוד</span>
+          <strong>גררו תמונות לכאן או לחצו כדי לבחור</strong>
+          <span>אפשר כמה תמונות בבת אחת. JPG, PNG, WEBP ועוד</span>
         </div>
       )}
 
-      <canvas ref={canvasRef} className="preview" hidden={!image} />
+      <canvas ref={canvasRef} className="preview" hidden={!item} />
 
-      {image && p.cropEdit && (
+      {item && p.cropEdit && (
         <CropOverlay
           stageRef={stageRef}
           canvasRef={canvasRef}
-          imageSize={{ w: image.canvas.width, h: image.canvas.height }}
+          imageSize={{ w: item.original.width, h: item.original.height }}
           rect={p.cropEdit}
           ratio={p.cropRatio}
           onChange={p.onCropChange}
         />
       )}
 
-      <StatusOverlay removal={p.removal} onRetry={p.onRetry} />
+      {item && region && p.brushRadius !== null && item.status === 'done' && (
+        <BrushOverlay
+          stageRef={stageRef}
+          canvasRef={canvasRef}
+          region={region}
+          radius={p.brushRadius}
+          onStrokeStart={p.onStrokeStart}
+          onStrokeMove={p.onStrokeMove}
+          onStrokeEnd={p.onStrokeEnd}
+        />
+      )}
+
+      {item && <StatusOverlay item={item} onRetry={p.onRetry} />}
 
       {p.toast && (
         <div className="toast" role="status">

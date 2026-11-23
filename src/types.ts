@@ -46,6 +46,22 @@ export interface Effects {
   outlineWidth: number;
 }
 
+/** "Center with padding": the output frame is built around the subject instead of cropped. */
+export interface Framing {
+  on: boolean;
+  /** 0–60: space around the subject, as a percentage of its longest side. */
+  padding: number;
+  /** width / height, or 0 to follow the subject's own shape. */
+  ratio: number;
+}
+
+/** Settings shared by all images. Undo/redo tracks changes to these. */
+export interface DocSettings {
+  bg: BgSettings;
+  effects: Effects;
+  framing: Framing;
+}
+
 export type ExportFormat = 'png' | 'jpeg' | 'webp';
 
 export interface ExportSettings {
@@ -54,25 +70,51 @@ export interface ExportSettings {
   maxSide: number;
 }
 
-/** A photo the user opened, ready to be processed. */
-export interface LoadedImage {
-  /** The photo drawn at its working size (large photos are scaled down). */
-  canvas: HTMLCanvasElement;
-  /** Raw RGBA pixels of `canvas`, in the format the model library accepts. */
-  pixels: Blob;
-  /** File name without the extension, used for the downloaded file. */
-  name: string;
-  scaledDown: boolean;
-}
+export type ModelId = 'isnet' | 'rmbg' | 'modnet' | 'birefnet-lite';
+
+export type Theme = 'auto' | 'light' | 'dark';
+
+export type BrushMode = 'erase' | 'restore';
 
 export type RemovalProgress =
+  | { phase: 'queued' }
   | { phase: 'loading' }
   | { phase: 'download'; done: number; total: number }
   | { phase: 'preparing' }
   | { phase: 'removing' };
 
-export type RemovalState =
-  | { status: 'idle' }
-  | { status: 'working'; progress: RemovalProgress }
-  | { status: 'done'; cutout: HTMLCanvasElement; subjectBox: Rect | null }
-  | { status: 'error'; offline: boolean; detail: string };
+/** One opened photo and everything done to it. */
+export interface Item {
+  id: string;
+  /** File name without the extension, used for the saved file. */
+  name: string;
+  /** The photo at its working size (large photos are scaled down). */
+  original: HTMLCanvasElement;
+  /** Small preview for the list of photos. */
+  thumb: string;
+  scaledDown: boolean;
+  status: 'pending' | 'working' | 'done' | 'error';
+  progress: RemovalProgress;
+  error: { offline: boolean; detail: string } | null;
+  /** The subject on a transparent background. The touch-up brush edits it in place. */
+  cutout: HTMLCanvasElement | null;
+  /** Bumped whenever `cutout` is edited in place, so the preview redraws. */
+  version: number;
+  /** Bounding box of the subject, or null if nothing was found. */
+  subjectBox: Rect | null;
+  /** Applied crop, or null for the whole image. */
+  crop: Rect | null;
+}
+
+export type HistoryEntry =
+  | { kind: 'settings'; before: DocSettings; after: DocSettings }
+  | { kind: 'crop'; itemId: string; before: Rect | null; after: Rect | null }
+  | {
+      kind: 'mask';
+      itemId: string;
+      /** Where the patches go in the cutout. */
+      x: number;
+      y: number;
+      before: HTMLCanvasElement;
+      after: HTMLCanvasElement;
+    };

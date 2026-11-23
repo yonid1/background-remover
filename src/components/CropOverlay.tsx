@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef, useState, type PointerEvent, type RefObject } from 'react';
+import { useRef, type PointerEvent, type RefObject } from 'react';
+import { useCanvasBox } from '../hooks/useCanvasBox';
 import { moveRect, resizeRect, type Handle } from '../lib/geometry';
 import type { Rect, Size } from '../types';
 
@@ -26,31 +27,8 @@ interface Drag {
 
 /** The crop frame drawn over the preview: drag it to move, drag the handles to resize. */
 export function CropOverlay({ stageRef, canvasRef, imageSize, rect, ratio, onChange }: Props) {
-  const [box, setBox] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const box = useCanvasBox(stageRef, canvasRef);
   const drag = useRef<Drag | null>(null);
-
-  // Line the layer up with the canvas as it's shown on screen, and keep it lined up when
-  // the window or the canvas changes size.
-  useLayoutEffect(() => {
-    const stage = stageRef.current;
-    const canvas = canvasRef.current;
-    if (!stage || !canvas) return;
-    const update = () => {
-      const s = stage.getBoundingClientRect();
-      const c = canvas.getBoundingClientRect();
-      setBox({
-        left: c.left - s.left - stage.clientLeft,
-        top: c.top - s.top - stage.clientTop,
-        width: c.width,
-        height: c.height,
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(stage);
-    observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [stageRef, canvasRef]);
 
   if (!box) return null;
   const k = box.width / imageSize.w;

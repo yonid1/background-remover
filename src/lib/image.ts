@@ -1,5 +1,5 @@
 import { MAX_PIXELS, MAX_SIDE } from '../constants';
-import type { BackgroundImage, LoadedImage } from '../types';
+import type { BackgroundImage } from '../types';
 
 /** Decodes an image file with the browser's own decoder (so HEIC works in Safari, for example). */
 function decode(url: string): Promise<HTMLImageElement> {
@@ -15,12 +15,22 @@ function decode(url: string): Promise<HTMLImageElement> {
 export function decodeErrorMessage(file: File): string {
   const isHeic = /\.(heic|heif)$/i.test(file.name) || /hei[cf]/i.test(file.type);
   return isHeic
-    ? 'הדפדפן הזה לא יודע לפתוח קבצי HEIC (הפורמט של תמונות אייפון). אפשר לפתוח את הדף בספארי, או להמיר את התמונה ל-JPG.'
-    : 'לא הצלחנו לפתוח את הקובץ. כדאי לנסות תמונה מסוג JPG, PNG או WEBP.';
+    ? `הדפדפן הזה לא יודע לפתוח קבצי HEIC (${file.name}). אפשר לפתוח את הדף בספארי, או להמיר את התמונה ל-JPG.`
+    : `לא הצלחנו לפתוח את הקובץ ${file.name}. כדאי לנסות תמונה מסוג JPG, PNG או WEBP.`;
 }
 
-/** Opens the photo to process. Throws if the browser can't decode it. */
-export async function loadImageFile(file: File): Promise<LoadedImage> {
+export interface OpenedImage {
+  /** The photo drawn at its working size (large photos are scaled down). */
+  original: HTMLCanvasElement;
+  /** File name without the extension. */
+  name: string;
+  /** A small JPEG preview (data URL) for the list of photos. */
+  thumb: string;
+  scaledDown: boolean;
+}
+
+/** Opens a photo to process. Throws if the browser can't decode it. */
+export async function loadImageFile(file: File): Promise<OpenedImage> {
   const url = URL.createObjectURL(file);
   let img: HTMLImageElement;
   try {
@@ -37,19 +47,23 @@ export async function loadImageFile(file: File): Promise<LoadedImage> {
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
 
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-  ctx.drawImage(img, 0, 0, w, h);
+  const original = document.createElement('canvas');
+  original.width = w;
+  original.height = h;
+  original.getContext('2d', { willReadFrequently: true })!.drawImage(img, 0, 0, w, h);
 
-  // Handing the model raw pixels (instead of the file) means it sees exactly what we draw:
-  // same orientation, same size, and any format the browser can open.
-  const { data } = ctx.getImageData(0, 0, w, h);
+  const t = 160 / Math.max(w, h);
+  const thumbCanvas = document.createElement('canvas');
+  thumbCanvas.width = Math.max(1, Math.round(w * t));
+  thumbCanvas.height = Math.max(1, Math.round(h * t));
+  const tctx = thumbCanvas.getContext('2d')!;
+  tctx.imageSmoothingQuality = 'high';
+  tctx.drawImage(original, 0, 0, thumbCanvas.width, thumbCanvas.height);
+
   return {
-    canvas,
-    pixels: new Blob([data], { type: `image/x-rgba8;width=${w};height=${h}` }),
+    original,
     name: file.name.replace(/\.[^.]+$/, '') || 'image',
+    thumb: thumbCanvas.toDataURL('image/jpeg', 0.8),
     scaledDown: scale < 1,
   };
 }

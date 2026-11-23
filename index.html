@@ -4,6 +4,19 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>מסיר רקע</title>
+    <meta name="description" content="מסיר רקע מתמונות שרץ כולו בדפדפן" />
+    <link rel="icon" href="./icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="מסיר רקע" />
+    <script>
+      // Apply the saved light/dark choice before the page draws, so it doesn't flash.
+      try {
+        document.documentElement.dataset.theme = localStorage.getItem('background-remover:theme') || 'auto';
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>

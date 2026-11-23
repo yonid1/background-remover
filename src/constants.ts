@@ -1,11 +1,111 @@
-import type { BgSettings, Effects, ExportSettings, GradientDir } from './types';
+import type { BgSettings, Effects, ExportSettings, Framing, GradientDir, ModelId } from './types';
+
+/** How a Transformers.js model is fed and read (from each model card). */
+export interface TransformersSetup {
+  repo: string;
+  /** 'fp16' falls back to 'fp32' on GPUs without half-precision support. */
+  dtype: 'fp16' | 'fp32';
+  /**
+   * 'square': the photo is stretched to size×size (the model's fixed input).
+   * 'fit': the photo is shrunk to fit size×size, keeping its shape; the model's own
+   * processor then picks the exact input size.
+   */
+  input: 'square' | 'fit';
+  size: number;
+  /** The output is raw scores that still need a sigmoid (otherwise it's already 0–1). */
+  sigmoid: boolean;
+  modelConfig?: Record<string, unknown>;
+  processorConfig?: Record<string, unknown>;
+}
+
+export interface ModelInfo {
+  id: ModelId;
+  label: string;
+  /** Download size, shown to the user. */
+  size: string;
+  description: string;
+  /** Which library runs it. */
+  engine: 'imgly' | 'transformers';
+  transformers?: TransformersSetup;
+  /** Too slow without a GPU, so only offered when WebGPU is available. */
+  needsWebGPU: boolean;
+  /**
+   * Fails on Apple GPUs (Mac, iPhone): in testing (Chrome 156, M-series Mac) BiRefNet's
+   * WebGPU kernels need 11 storage buffers per shader but Apple GPUs allow 10, with both
+   * Transformers.js 3.8 and 4.3; on the CPU it runs out of WebAssembly memory.
+   */
+  failsOnApple?: boolean;
+}
 
 /**
- * The model used by @imgly/background-removal. 'isnet_fp16' (~88 MB) is the library default.
- * In testing, 'isnet_quint8' was much slower (about 30 s per image) and the full 'isnet'
- * doubled the download without a visible gain.
+ * The background-removal models to choose from.
+ * - ISNet runs through @imgly/background-removal ('isnet_fp16'). In testing, its smaller
+ *   'isnet_quint8' was much slower (about 30 s per image) and the full 'isnet' doubled the
+ *   download without a visible gain.
+ * - The others run through Transformers.js on WebGPU. RMBG-1.4 and MODNet were tested
+ *   working on an M-series Mac; BiRefNet Lite could not be tested on a GPU where it runs.
  */
-export const MODEL = 'isnet_fp16';
+export const MODELS: ModelInfo[] = [
+  {
+    id: 'isnet',
+    label: 'ISNet: מהיר',
+    size: '88MB',
+    description: 'ברירת המחדל. מהיר ומתאים לרוב התמונות.',
+    engine: 'imgly',
+    needsWebGPU: false,
+  },
+  {
+    id: 'rmbg',
+    label: 'RMBG 1.4: איכותי יותר',
+    size: '88MB',
+    description:
+      'קצוות נקיים יותר ברוב התמונות: אנשים, מוצרים וחיות. של חברת BRIA, ומותר לשימוש לא מסחרי בלבד.',
+    engine: 'transformers',
+    transformers: {
+      repo: 'briaai/RMBG-1.4',
+      dtype: 'fp16',
+      input: 'square',
+      size: 1024,
+      sigmoid: false,
+      modelConfig: { model_type: 'custom' },
+      processorConfig: {
+        do_normalize: true,
+        do_pad: false,
+        do_rescale: true,
+        do_resize: true,
+        image_mean: [0.5, 0.5, 0.5],
+        feature_extractor_type: 'ImageFeatureExtractor',
+        image_std: [1, 1, 1],
+        resample: 2,
+        rescale_factor: 0.00392156862745098,
+        size: { width: 1024, height: 1024 },
+      },
+    },
+    needsWebGPU: true,
+  },
+  {
+    id: 'modnet',
+    label: 'MODNet: לתמונות של אנשים',
+    size: '26MB',
+    description: 'מתמחה בפורטרטים: שיער וקצוות עדינים של אנשים. פחות מתאים לחפצים ולבעלי חיים.',
+    engine: 'transformers',
+    transformers: { repo: 'Xenova/modnet', dtype: 'fp32', input: 'fit', size: 1024, sigmoid: false },
+    needsWebGPU: true,
+  },
+  {
+    id: 'birefnet-lite',
+    label: 'BiRefNet Lite: ניסיוני',
+    size: '115MB',
+    description:
+      'מודל מתקדם עם קצוות מדויקים מאוד. ניסיוני: לא רץ על מק ואייפון, ועל מחשבים אחרים תלוי בכרטיס המסך.',
+    engine: 'transformers',
+    transformers: { repo: 'onnx-community/BiRefNet_lite-ONNX', dtype: 'fp16', input: 'square', size: 1024, sigmoid: true },
+    needsWebGPU: true,
+    failsOnApple: true,
+  },
+];
+
+export const DEFAULT_MODEL: ModelId = 'isnet';
 
 /** Larger photos are scaled down so the browser doesn't run out of memory. */
 export const MAX_SIDE = 5000;
@@ -46,7 +146,7 @@ export const GRADIENT_DIRS: { id: GradientDir; vec: [number, number] | null; nam
   { id: 'se', vec: [1, 1], name: 'באלכסון, אל הפינה הימנית התחתונה' },
 ];
 
-/** Crop shapes: value is width / height, 0 means free. */
+/** Crop and frame shapes: value is width / height, 0 means free. */
 export const CROP_RATIOS: { label: string; value: number; title?: string }[] = [
   { label: 'חופשי', value: 0 },
   { label: '1:1', value: 1, title: 'ריבוע' },
@@ -56,6 +156,16 @@ export const CROP_RATIOS: { label: string; value: number; title?: string }[] = [
   { label: '9:16', value: 9 / 16, title: 'סטורי' },
   { label: '16:9', value: 16 / 9, title: 'מסך רחב' },
 ];
+
+export const DEFAULT_BG: BgSettings = {
+  type: 'transparent',
+  color: '#ffffff',
+  g1: GRADIENT_PRESETS[0][0],
+  g2: GRADIENT_PRESETS[0][1],
+  gDir: 's',
+  blur: 30,
+  image: null,
+};
 
 export const OUTLINE_SWATCHES = ['#ffffff', '#000000', '#facc15', '#4f46e5', '#ec4899'];
 
@@ -67,6 +177,8 @@ export const DEFAULT_EFFECTS: Effects = {
   outlineColor: '#ffffff',
   outlineWidth: 10,
 };
+
+export const DEFAULT_FRAMING: Framing = { on: false, padding: 12, ratio: 1 };
 
 export const EXPORT_FORMATS: { id: ExportSettings['format']; label: string }[] = [
   { id: 'png', label: 'PNG' },
@@ -82,12 +194,8 @@ export const EXPORT_SIZES: { value: number; label: string }[] = [
 
 export const DEFAULT_EXPORT: ExportSettings = { format: 'png', maxSide: 0 };
 
-export const DEFAULT_BG: BgSettings = {
-  type: 'transparent',
-  color: '#ffffff',
-  g1: GRADIENT_PRESETS[0][0],
-  g2: GRADIENT_PRESETS[0][1],
-  gDir: 's',
-  blur: 30,
-  image: null,
-};
+/** Touch-up brush size: 1–100, as a fraction of the image's longest side (see BrushOverlay). */
+export const DEFAULT_BRUSH_SIZE = 25;
+
+/** How many undo steps are kept. */
+export const HISTORY_LIMIT = 40;

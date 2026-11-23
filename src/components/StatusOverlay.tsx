@@ -1,8 +1,9 @@
-import type { RemovalProgress, RemovalState } from '../types';
+import type { Item, RemovalProgress } from '../types';
 
 const mb = (bytes: number) => `${(bytes / 1e6).toFixed(0)}MB`;
 
 const PHASE_TEXT: Record<RemovalProgress['phase'], string> = {
+  queued: 'ממתינה בתור. התמונות מעובדות אחת אחרי השנייה…',
   loading: 'טוענים את כלי ההסרה…',
   download: 'מורידים את מודל הבינה המלאכותית (רק בפעם הראשונה)…',
   preparing: 'מכינים את המודל…',
@@ -10,23 +11,24 @@ const PHASE_TEXT: Record<RemovalProgress['phase'], string> = {
 };
 
 interface Props {
-  removal: RemovalState;
+  item: Item;
   onRetry: () => void;
 }
 
-/** Covers the preview while the background is being removed, or when that failed. */
-export function StatusOverlay({ removal, onRetry }: Props) {
-  if (removal.status === 'idle' || removal.status === 'done') return null;
+/** Covers the preview while the photo's background is being removed, or when that failed. */
+export function StatusOverlay({ item, onRetry }: Props) {
+  if (item.status === 'done') return null;
 
-  if (removal.status === 'error') {
+  if (item.status === 'error') {
+    const offline = item.error?.offline ?? false;
     return (
       <div className="overlay">
         <div className="card error">
           <div className="status-text">
-            {removal.offline ? 'לא הצלחנו להוריד את מודל הבינה המלאכותית.' : 'משהו השתבש בהסרת הרקע.'}
+            {offline ? 'לא הצלחנו להוריד את מודל הבינה המלאכותית.' : 'משהו השתבש בהסרת הרקע.'}
           </div>
           <div className="status-sub">
-            {removal.offline ? 'צריך חיבור לאינטרנט בשימוש הראשון. כדאי לבדוק את החיבור ולנסות שוב.' : removal.detail}
+            {offline ? 'צריך חיבור לאינטרנט בשימוש הראשון. כדאי לבדוק את החיבור ולנסות שוב.' : item.error?.detail}
           </div>
           <button className="btn primary mt-14" type="button" onClick={onRetry}>
             לנסות שוב
@@ -36,7 +38,7 @@ export function StatusOverlay({ removal, onRetry }: Props) {
     );
   }
 
-  const p = removal.progress;
+  const p = item.progress;
   const fraction = p.phase === 'download' ? p.done / p.total : null;
   return (
     <div className="overlay">
