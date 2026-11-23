@@ -121,13 +121,39 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 
 .bg-thumb { margin-top: 10px; width: 100%; height: 90px; border-radius: 9px; object-fit: cover; border: 1px solid var(--border); display: block; }
 
-/* Crop ratio chips */
+/* Chips: crop ratios and file formats */
 .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.chips.three { grid-template-columns: repeat(3, 1fr); }
 .chips button {
   border: 1px solid var(--border); background: var(--panel); border-radius: 8px;
   padding: 6px 0; cursor: pointer; font-size: 13px;
 }
 .chips button[aria-pressed="true"] { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.chips button:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Form fields */
+.field-label { font-size: 13px; color: var(--muted); margin: 14px 0 8px; }
+.field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--muted); }
+select { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; background: var(--panel); color: var(--text); }
+.range { display: block; margin-top: 10px; }
+
+/* Effects: on/off switches with their own settings underneath */
+.switch-row { display: flex; align-items: center; gap: 10px; cursor: pointer; font-size: 14px; }
+.switch {
+  appearance: none; -webkit-appearance: none; margin: 0; flex-shrink: 0; cursor: pointer;
+  width: 36px; height: 20px; border-radius: 99px; background: #d1d5db; position: relative;
+  transition: background .15s;
+}
+.switch::before {
+  content: ''; position: absolute; top: 2px; inset-inline-start: 2px; width: 16px; height: 16px;
+  border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: inset-inline-start .15s;
+}
+.switch:checked { background: var(--accent); }
+.switch:checked::before { inset-inline-start: 18px; }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sub-controls { margin: 4px 0 0; padding-inline-start: 46px; }
+.color-row.tight { gap: 8px; margin-top: 10px; }
+.swatch.small { width: 24px; height: 24px; flex-shrink: 0; }
 
 /* ---------- Preview ---------- */
 .stage {

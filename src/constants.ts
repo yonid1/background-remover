@@ -1,4 +1,4 @@
-import type { BgSettings, GradientDir } from './types';
+import type { BgSettings, Effects, ExportSettings, GradientDir } from './types';
 
 /**
  * The model used by @imgly/background-removal. 'isnet_fp16' (~88 MB) is the library default.
@@ -9,6 +9,12 @@ export const MODEL = 'isnet_fp16';
 
 /** Larger photos are scaled down so the browser doesn't run out of memory. */
 export const MAX_SIDE = 5000;
+
+/**
+ * Safari on iPhone can't draw canvases bigger than 16,777,216 pixels (4096×4096), and the
+ * iPhone 15 Pro and later take 24-megapixel photos by default, so the area is capped too.
+ */
+export const MAX_PIXELS = 16_000_000;
 
 export const SWATCHES = [
   '#ffffff', '#000000', '#f3f4f6', '#9ca3af', '#ef4444', '#f97316', '#facc15', '#22c55e',
@@ -50,6 +56,31 @@ export const CROP_RATIOS: { label: string; value: number; title?: string }[] = [
   { label: '9:16', value: 9 / 16, title: 'סטורי' },
   { label: '16:9', value: 16 / 9, title: 'מסך רחב' },
 ];
+
+export const OUTLINE_SWATCHES = ['#ffffff', '#000000', '#facc15', '#4f46e5', '#ec4899'];
+
+export const DEFAULT_EFFECTS: Effects = {
+  shadow: false,
+  shadowSize: 30,
+  shadowOpacity: 45,
+  outline: false,
+  outlineColor: '#ffffff',
+  outlineWidth: 10,
+};
+
+export const EXPORT_FORMATS: { id: ExportSettings['format']; label: string }[] = [
+  { id: 'png', label: 'PNG' },
+  { id: 'jpeg', label: 'JPG' },
+  { id: 'webp', label: 'WEBP' },
+];
+
+export const EXPORT_SIZES: { value: number; label: string }[] = [
+  { value: 0, label: 'גודל מקורי' },
+  { value: 2048, label: 'עד 2048 פיקסלים' },
+  { value: 1080, label: 'עד 1080 פיקסלים (רשתות חברתיות)' },
+];
+
+export const DEFAULT_EXPORT: ExportSettings = { format: 'png', maxSide: 0 };
 
 export const DEFAULT_BG: BgSettings = {
   type: 'transparent',

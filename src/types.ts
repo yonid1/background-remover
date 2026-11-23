@@ -33,6 +33,27 @@ export interface BgSettings {
   image: BackgroundImage | null;
 }
 
+/** Effects applied to the cut-out subject. Sizes are relative to the image (see compose.ts). */
+export interface Effects {
+  shadow: boolean;
+  /** 1–100: how big and soft the shadow is. */
+  shadowSize: number;
+  /** 0–100: how dark the shadow is. */
+  shadowOpacity: number;
+  outline: boolean;
+  outlineColor: string;
+  /** 1–40: outline thickness. */
+  outlineWidth: number;
+}
+
+export type ExportFormat = 'png' | 'jpeg' | 'webp';
+
+export interface ExportSettings {
+  format: ExportFormat;
+  /** Longest side of the saved image in pixels, or 0 for the original size. */
+  maxSide: number;
+}
+
 /** A photo the user opened, ready to be processed. */
 export interface LoadedImage {
   /** The photo drawn at its working size (large photos are scaled down). */
