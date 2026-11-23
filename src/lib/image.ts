@@ -1,4 +1,4 @@
-import { MAX_SIDE } from '../constants';
+import { MAX_PIXELS, MAX_SIDE } from '../constants';
 import type { BackgroundImage, LoadedImage } from '../types';
 
 /** Decodes an image file with the browser's own decoder (so HEIC works in Safari, for example). */
@@ -29,7 +29,11 @@ export async function loadImageFile(file: File): Promise<LoadedImage> {
     URL.revokeObjectURL(url);
   }
 
-  const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight));
+  const scale = Math.min(
+    1,
+    MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight),
+    Math.sqrt(MAX_PIXELS / (img.naturalWidth * img.naturalHeight)),
+  );
   const w = Math.max(1, Math.round(img.naturalWidth * scale));
   const h = Math.max(1, Math.round(img.naturalHeight * scale));
 

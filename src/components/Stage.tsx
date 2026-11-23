@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
-import { composeInto } from '../lib/compose';
-import type { BgSettings, LoadedImage, Rect, RemovalState } from '../types';
+import { composeInto, PREVIEW_MAX_SIDE } from '../lib/compose';
+import type { BgSettings, Effects, LoadedImage, Rect, RemovalState } from '../types';
 import { CropOverlay } from './CropOverlay';
 import { PhotoIcon } from './icons';
 import { StatusOverlay } from './StatusOverlay';
@@ -9,6 +9,7 @@ interface Props {
   image: LoadedImage | null;
   cutout: HTMLCanvasElement | null;
   bg: BgSettings;
+  effects: Effects;
   /** The part of the image to show. */
   region: Rect | null;
   showOriginal: boolean;
@@ -26,13 +27,15 @@ interface Props {
 export function Stage(p: Props) {
   const stageRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const { image, cutout, bg, region, showOriginal } = p;
+  const { image, cutout, bg, effects, region, showOriginal } = p;
 
   useLayoutEffect(() => {
     if (image && region && canvasRef.current) {
-      composeInto(canvasRef.current, { original: image.canvas, cutout, bg, region, showOriginal });
+      // The preview doesn't need more pixels than a screen can show; saving uses full size.
+      const scale = Math.min(1, PREVIEW_MAX_SIDE / Math.max(region.w, region.h));
+      composeInto(canvasRef.current, { original: image.canvas, cutout, bg, effects, region, showOriginal }, scale);
     }
-  }, [image, cutout, bg, region, showOriginal]);
+  }, [image, cutout, bg, effects, region, showOriginal]);
 
   return (
     <div ref={stageRef} className={p.dragging ? 'stage dragging' : 'stage'}>

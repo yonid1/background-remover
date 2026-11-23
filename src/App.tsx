@@ -1,22 +1,27 @@
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { BackgroundSection } from './components/background/BackgroundSection';
 import { CropSection } from './components/CropSection';
-import { ExportSection, type ExportType } from './components/ExportSection';
+import { EffectsSection } from './components/EffectsSection';
+import { ExportSection } from './components/ExportSection';
 import { ImageSection } from './components/ImageSection';
 import { Stage } from './components/Stage';
-import { DEFAULT_BG } from './constants';
+import { DEFAULT_BG, DEFAULT_EFFECTS, DEFAULT_EXPORT } from './constants';
 import { useBackgroundRemoval } from './hooks/useBackgroundRemoval';
 import { useFileDropAndPaste } from './hooks/useFileDropAndPaste';
+import { usePersistentState } from './hooks/usePersistentState';
 import { useToast } from './hooks/useToast';
-import { composeInto, isTransparent } from './lib/compose';
+import { extensionFor, isTransparent, renderToBlob, type ComposeParams } from './lib/compose';
 import { finalizeCrop, fullRect, largestWithRatio, subjectRect } from './lib/geometry';
 import { decodeErrorMessage, loadImageFile, saveBlob } from './lib/image';
-import type { BgSettings, LoadedImage, Rect } from './types';
+import type { ExportFormat, LoadedImage, Rect } from './types';
 
 export default function App() {
   const [image, setImage] = useState<LoadedImage | null>(null);
   const [removal, retry] = useBackgroundRemoval(image);
-  const [bg, setBg] = useState<BgSettings>(DEFAULT_BG);
+  // Background, effects and save options are remembered between visits (photos are not).
+  const [bg, setBg] = usePersistentState('bg', DEFAULT_BG, ['image']);
+  const [effects, setEffects] = usePersistentState('effects', DEFAULT_EFFECTS);
+  const [exportSettings, setExportSettings] = usePersistentState('export', DEFAULT_EXPORT);
   const [crop, setCrop] = useState<Rect | null>(null); // applied crop, null = whole image
   const [cropEdit, setCropEdit] = useState<Rect | null>(null); // frame being edited
   const [cropRatio, setCropRatio] = useState(0); // width / height, 0 = free
@@ -82,19 +87,53 @@ export default function App() {
     return () => document.removeEventListener('keydown', onCropKey);
   }, [editing]);
 
-  // ----- Download -----
-  const download = (type: ExportType) => {
-    if (!image || !cutout || !size) return;
-    const canvas = document.createElement('canvas');
-    composeInto(canvas, { original: image.canvas, cutout, bg, region: crop ?? fullRect(size), showOriginal: false });
-    canvas.toBlob(
-      (blob) => {
-        if (blob) saveBlob(blob, `${image.name}-no-bg.${type === 'image/png' ? 'png' : 'jpg'}`);
-        else showToast('לא הצלחנו ליצור את הקובץ.');
-      },
-      type,
-      0.92,
-    );
+  // ----- Saving -----
+  const transparent = isTransparent(bg);
+  const format: ExportFormat = transparent && exportSettings.format === 'jpeg' ? 'png' : exportSettings.format;
+  const exportParams = (): ComposeParams | null =>
+    image && cutout && size
+      ? { original: image.canvas, cutout, bg, effects, region: crop ?? fullRect(size), showOriginal: false }
+      : null;
+  const fileName = (blob: Blob) => `${image?.name ?? 'image'}-no-bg.${extensionFor(blob)}`;
+
+  const download = async () => {
+    const params = exportParams();
+    if (!params) return;
+    try {
+      const blob = await renderToBlob(params, format, exportSettings.maxSide);
+      saveBlob(blob, fileName(blob));
+    } catch {
+      showToast('לא הצלחנו ליצור את הקובץ.');
+    }
+  };
+
+  const copy = async () => {
+    const params = exportParams();
+    if (!params) return;
+    try {
+      // The clipboard only takes PNG. Passing the promise keeps Safari's "user gesture" alive.
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': renderToBlob(params, 'png', exportSettings.maxSide) }),
+      ]);
+      showToast('התמונה הועתקה. אפשר להדביק אותה בכל מקום.');
+    } catch (err) {
+      console.error(err);
+      showToast('לא הצלחנו להעתיק. אפשר להוריד את התמונה במקום.');
+    }
+  };
+
+  const share = async () => {
+    const params = exportParams();
+    if (!params) return;
+    try {
+      const blob = await renderToBlob(params, format, exportSettings.maxSide);
+      await navigator.share({ files: [new File([blob], fileName(blob), { type: blob.type })] });
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') {
+        console.error(err);
+        showToast('לא הצלחנו לשתף. אפשר להוריד את התמונה במקום.');
+      }
+    }
   };
 
   return (
@@ -121,11 +160,17 @@ export default function App() {
             onRatio={chooseRatio}
             onFit={fitToSubject}
           />
+          <EffectsSection effects={effects} onChange={(patch) => setEffects((prev) => ({ ...prev, ...patch }))} />
           <ExportSection
             ready={!!cutout && !editing}
-            transparent={isTransparent(bg)}
+            transparent={transparent}
+            settings={exportSettings}
+            format={format}
+            onSettings={(patch) => setExportSettings((prev) => ({ ...prev, ...patch }))}
             onCompare={setShowOriginal}
             onDownload={download}
+            onCopy={copy}
+            onShare={share}
           />
           <p className="privacy">
             התמונות לא נשלחות לשום שרת: העיבוד כולו נעשה בדפדפן, אצלכם במחשב. בשימוש הראשון הדף מוריד את מודל הבינה
@@ -139,6 +184,7 @@ export default function App() {
           image={image}
           cutout={cutout}
           bg={bg}
+          effects={effects}
           region={region}
           showOriginal={showOriginal}
           cropEdit={cropEdit}
